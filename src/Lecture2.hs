@@ -40,6 +40,8 @@ module Lecture2
     , constantFolding
     ) where
 
+import Data.Maybe
+
 -- VVV If you need to import libraries, do it after this line ... VVV
 
 -- ^^^ and before this line. Otherwise the test suite might fail  ^^^
@@ -52,7 +54,10 @@ zero, you can stop calculating product and return 0 immediately.
 84
 -}
 lazyProduct :: [Int] -> Int
-lazyProduct = error "TODO"
+lazyProduct []     = 1
+lazyProduct (0:_)  = 0
+lazyProduct (x:xs) = x * lazyProduct xs
+
 
 {- | Implement a function that duplicates every element in the list.
 
@@ -62,7 +67,8 @@ lazyProduct = error "TODO"
 "ccaabb"
 -}
 duplicate :: [a] -> [a]
-duplicate = error "TODO"
+duplicate []     = []
+duplicate (x:xs) = x:x:duplicate xs
 
 {- | Implement function that takes index and a list and removes the
 element at the given position. Additionally, this function should also
@@ -74,7 +80,15 @@ return the removed element.
 >>> removeAt 10 [1 .. 5]
 (Nothing,[1,2,3,4,5])
 -}
-removeAt = error "TODO"
+removeAt :: Int -> [a] -> (Maybe a, [a])
+removeAt _ [] = (Nothing, [])
+removeAt 0 (x:xs) = (Just x, xs)
+removeAt n (x:xs) 
+  | n < 0 = (Nothing, x:xs)
+  | otherwise = (a, x:b)
+    where
+      (a, b) = removeAt (n-1) xs
+
 
 {- | Write a function that takes a list of lists and returns only
 lists of even lengths.
@@ -85,7 +99,8 @@ lists of even lengths.
 ♫ NOTE: Use eta-reduction and function composition (the dot (.) operator)
   in this function.
 -}
-evenLists = error "TODO"
+evenLists :: [[a]] -> [[a]]
+evenLists = filter $ even . length
 
 {- | The @dropSpaces@ function takes a string containing a single word
 or number surrounded by spaces and removes all leading and trailing
@@ -101,7 +116,8 @@ spaces.
 
 🕯 HINT: look into Data.Char and Prelude modules for functions you may use.
 -}
-dropSpaces = error "TODO"
+dropSpaces :: String -> String
+dropSpaces = head . words 
 
 {- |
 
@@ -185,7 +201,10 @@ False
 True
 -}
 isIncreasing :: [Int] -> Bool
-isIncreasing = error "TODO"
+isIncreasing []  = True
+isIncreasing [_] = True
+isIncreasing (x:y:xs) = x < y && isIncreasing (y:xs)
+
 
 {- | Implement a function that takes two lists, sorted in the
 increasing order, and merges them into new list, also sorted in the
@@ -198,7 +217,12 @@ verify that.
 [1,2,3,4,7]
 -}
 merge :: [Int] -> [Int] -> [Int]
-merge = error "TODO"
+merge [] [] = []
+merge [] a  = a
+merge a []  = a
+merge (x:xs) (y:ys) 
+  | x < y     = x : merge xs (y:ys)
+  | otherwise = y : merge (x:xs) ys
 
 {- | Implement the "Merge Sort" algorithm in Haskell. The @mergeSort@
 function takes a list of numbers and returns a new list containing the
@@ -215,7 +239,13 @@ The algorithm of merge sort is the following:
 [1,2,3]
 -}
 mergeSort :: [Int] -> [Int]
-mergeSort = error "TODO"
+mergeSort []  = []
+mergeSort [x] = [x]
+mergeSort xs = merge (mergeSort left) (mergeSort right)
+  where
+    mid = length xs `div` 2
+    left = take mid xs
+    right = drop mid xs
 
 
 {- | Haskell is famous for being a superb language for implementing
@@ -268,7 +298,19 @@ data EvalError
 It returns either a successful evaluation result or an error.
 -}
 eval :: Variables -> Expr -> Either EvalError Int
-eval = error "TODO"
+eval _ (Lit x) = Right x
+eval vars (Add a b) = 
+  case (resultA, resultB) of
+    (Left err, _) -> Left err
+    (_, Left err) -> Left err
+    (Right resultA', Right resultB') -> Right $ resultA' + resultB'
+  where 
+    resultA = eval vars a
+    resultB = eval vars b
+eval vars (Var v) = 
+  case lookup v vars of
+    Nothing -> Left $ VariableNotFound v
+    (Just v') -> Right v'
 
 {- | Compilers also perform optimizations! One of the most common
 optimizations is "Constant Folding". It performs arithmetic operations
@@ -292,4 +334,28 @@ Write a function that takes and expression and performs "Constant
 Folding" optimization on the given expression.
 -}
 constantFolding :: Expr -> Expr
-constantFolding = error "TODO"
+constantFolding expr = 
+  case varsExpr of
+    Nothing -> Lit n
+    (Just varsExpr') -> if n == 0
+                        then varsExpr'
+                        else Add varsExpr' (Lit n)
+  where
+    (vars, n) = constantFolding' [] 0 expr
+    varsExpr = createExpr vars
+
+createExpr :: [String] -> Maybe Expr
+createExpr [] = Nothing
+createExpr [x] = Just $ Var x
+createExpr (x:xs) = 
+  case createExpr xs of 
+    Nothing -> Just $ Var x
+    (Just expr) -> Just $ Add (Var x) expr
+
+constantFolding' :: [String] -> Int -> Expr -> ([String], Int)
+constantFolding' vars n (Lit x) = (vars, n + x)
+constantFolding' vars n (Var v) = (v:vars, n)
+constantFolding' vars n (Add a b) = (vars ++ varsA ++ varsB, n + nA + nB)
+  where
+    (varsA, nA) = constantFolding' [] 0 a
+    (varsB, nB) = constantFolding' [] 0 b
